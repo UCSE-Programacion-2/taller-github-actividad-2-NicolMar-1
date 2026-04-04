@@ -1,0 +1,77 @@
+# Crea automáticamente los tres issues de la actividad (Fases 1–3) leyendo las plantillas Markdown.
+# Evita duplicados: si ya existe al menos un issue con la etiqueta "auto-seeded", no vuelve a crearlos.
+#
+# Requisitos: permisos de issues en el repositorio (por defecto GITHUB_TOKEN en repos estándar).
+
+name: Crear issues iniciales de la actividad
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  seed-issues:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Comprobar si los issues ya fueron creados
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          count=$(gh issue list \
+            --repo "${{ github.repository }}" \
+            --label "auto-seeded" \
+            --state all \
+            --json number \
+            -q 'length')
+          echo "seeded_count=$count" >> "$GITHUB_OUTPUT"
+          if [ "$count" -gt 0 ]; then
+            echo "Issues con etiqueta auto-seeded ya existen; se omite la creación."
+          fi
+
+      - name: Crear etiquetas usadas por las plantillas (si no existen)
+        if: steps.check.outputs.seeded_count == '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          gh label create "auto-seeded" --repo "${{ github.repository }}" --color "5319E7" --description "Creado automáticamente por el workflow plantilla" 2>/dev/null
+          gh label create "fase-1" --repo "${{ github.repository }}" --color "0E8A16" 2>/dev/null
+          gh label create "fase-2" --repo "${{ github.repository }}" --color "1D76DB" 2>/dev/null
+          gh label create "fase-3" --repo "${{ github.repository }}" --color "B60205" 2>/dev/null
+          gh label create "tipo-tarea" --repo "${{ github.repository }}" --color "FEF2C0" 2>/dev/null
+          exit 0
+
+      - name: Crear issue — Fase 1 (plantilla e IA)
+        if: steps.check.outputs.seeded_count == '0'
+        uses: JasonEtco/create-an-issue@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          filename: .github/ISSUE_TEMPLATE/1-fase-ia.md
+
+      - name: Crear issue — Fase 2 (Git y PR)
+        if: steps.check.outputs.seeded_count == '0'
+        uses: JasonEtco/create-an-issue@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          filename: .github/ISSUE_TEMPLATE/2-fase-git.md
+
+      - name: Crear issue — Fase 3 (GitHub Pages)
+        if: steps.check.outputs.seeded_count == '0'
+        uses: JasonEtco/create-an-issue@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          filename: .github/ISSUE_TEMPLATE/3-fase-deploy.md
